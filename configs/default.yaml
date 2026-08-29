@@ -1,0 +1,14 @@
+# COCO-pretrained YOLO + ByteTrack, one horizontal count line at 60 % of the frame height.
+model: yolo26s.pt
+classes: [2, 3, 5, 7]        # COCO: car, motorcycle, bus, truck
+conf: 0.3
+iou: 0.6
+imgsz: 960
+tracker: bytetrack.yaml
+anchor: bottom_center
+min_hits: 3
+lines:
+  - name: line
+    start: [0.0, 0.6]
+    end: [1.0, 0.6]
+    directions: [down, up]

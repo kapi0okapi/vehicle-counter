@@ -1,0 +1,60 @@
+# Slurm cluster settings and job definitions, rendered by slurm/generate.py.
+# Put your account in slurm/cluster.local.toml (not committed):  [cluster]  account = "..."
+# Find your Slurm account with:  sacctmgr show assoc format=Account%20,User,QOS | grep $USER
+
+[cluster]
+account = "CHANGE_ME"   # overridden by slurm/cluster.local.toml
+python_module = "Python/3.11.3-GCCcore-12.3.0"   # module spider Python
+venv = "/cluster/work/$USER/venvs/vehicle-counter"
+workdir = "/cluster/work/$USER/vehicle-counter"  # $DATA = workdir/data, $RUNS = workdir/runs
+mail_user = ""
+
+[cluster.env]
+YOLO_OFFLINE = "1"   # weights and fonts are pre-fetched by scripts/download_models.sh
+
+[defaults]
+partition = "GPUQ"
+time = "0-12:00:00"
+cpus = 8
+mem = "32G"
+gpus = 1
+constraint = "gpu32g|gpu40g|gpu80g"   # V100 32 GB, A100, H100 (setup_cluster.sh installs PyTorch for CUDA 12.6)
+
+[jobs.convert-detrac]
+description = "UA-DETRAC -> YOLO dataset (every 5th frame) + val videos with MOT ground truth (CPU)"
+partition = "CPUQ"
+gpus = 0
+cpus = 4
+mem = "16G"
+time = "0-03:00:00"
+command = "python -m vehicle_counter.datasets.ua_detrac --images $DATA/ua_detrac/Insight-MVT_Annotation_Train --annotations $DATA/ua_detrac/DETRAC-Train-Annotations-XML --out $DATA/detrac_yolo"
+
+[jobs.train-detectors]
+description = "Fine-tune YOLO26 n/s/m on UA-DETRAC (array: speed vs. accuracy)"
+# SGD at lr 0.002: consecutive frames are near-duplicates, and Ultralytics' default lr 0.01
+# overfits the training cameras within a few epochs
+command = "python -m vehicle_counter.train --data $DATA/detrac_yolo/data.yaml --optimizer SGD --lr0 0.002 --epochs 30 --patience 10 $ARRAY_ARGS"
+array = [
+    "--model yolo26n.pt --name detrac_yolo26n --batch 64",
+    "--model yolo26s.pt --name detrac_yolo26s --batch 32",
+    "--model yolo26m.pt --name detrac_yolo26m --batch 16",
+]
+
+[jobs.eval-counts]
+description = "Counting error on held-out DETRAC sequences: COCO vs. fine-tuned weights, five trackers (array)"
+time = "0-04:00:00"
+command = "python -m vehicle_counter.evaluate_counts --sequences $DATA/detrac_yolo/sequences $ARRAY_ARGS"
+array = [
+    "--config configs/default.yaml --out $RUNS/count_eval/coco_yolo26s_bytetrack.json",
+    "--config configs/detrac.yaml --set model=${RUNS}/detrac_yolo26s/weights/best.pt --out $RUNS/count_eval/detrac_yolo26s_bytetrack.json",
+    "--config configs/detrac.yaml --out $RUNS/count_eval/detrac_yolo26m_bytetrack.json",
+    "--config configs/detrac.yaml --set tracker=botsort.yaml --out $RUNS/count_eval/detrac_yolo26m_botsort.json",
+    "--config configs/detrac.yaml --set tracker=ocsort.yaml --out $RUNS/count_eval/detrac_yolo26m_ocsort.json",
+    "--config configs/detrac.yaml --set tracker=tracktrack.yaml --out $RUNS/count_eval/detrac_yolo26m_tracktrack.json",
+    "--config configs/detrac.yaml --set tracker=fasttrack.yaml --out $RUNS/count_eval/detrac_yolo26m_fasttrack.json",
+]
+
+[jobs.export-tensorrt]
+description = "TensorRT FP16 engine + speed benchmark of the fine-tuned model"
+time = "0-01:00:00"
+command = "yolo benchmark model=$RUNS/detrac_yolo26m/weights/best.pt data=$DATA/detrac_yolo/data.yaml imgsz=960 format=engine quantize=16 device=0"

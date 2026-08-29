@@ -1,0 +1,10 @@
+# Detector fine-tuned on UA-DETRAC (classes car, van, bus, others), used for count evaluation.
+model: ${RUNS}/detrac_yolo26m/weights/best.pt
+classes: null
+conf: 0.3
+imgsz: 960
+tracker: bytetrack.yaml
+lines:
+  - name: line
+    start: [0.0, 0.6]
+    end: [1.0, 0.6]

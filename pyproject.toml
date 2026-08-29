@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vehicle-counter"
+version = "0.1.0"
+description = "Live vehicle detection, multi-object tracking and line-crossing counts (YOLO + ByteTrack)."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Kacper Pawlowski" }]
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "opencv-python-headless>=4.9",
+    "pyyaml>=6",
+    "ultralytics>=8.4",
+    "lapx>=0.5",
+]
+
+[project.optional-dependencies]
+train = ["tensorboard>=2.16", "onnx>=1.16"]
+dev = ["vehicle-counter[train]", "pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+vehicle-count = "vehicle_counter.cli:main"
+vehicle-count-eval = "vehicle_counter.evaluate_counts:main"
+vehicle-train = "vehicle_counter.train:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "NPY"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

@@ -1,0 +1,13 @@
+# Example with two lines, e.g. one per carriageway; coordinates are fractions of width/height.
+model: yolo26s.pt
+classes: [2, 3, 5, 7]
+tracker: botsort.yaml
+lines:
+  - name: northbound
+    start: [0.05, 0.55]
+    end: [0.48, 0.55]
+    directions: [out, in]
+  - name: southbound
+    start: [0.52, 0.65]
+    end: [0.95, 0.65]
+    directions: [in, out]
